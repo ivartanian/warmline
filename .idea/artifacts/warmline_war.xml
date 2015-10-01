@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="war" name="warmline:war">
+    <output-path>$PROJECT_DIR$/target</output-path>
+    <root id="archive" name="warmline.war">
+      <element id="artifact" artifact-name="warmline:war exploded" />
+    </root>
+  </artifact>
+</component>
