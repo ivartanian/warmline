@@ -1,5 +1,6 @@
 package com.vartanian.warmline.config;
 
+import com.vartanian.warmline.example.HelloWorld;
 import org.glassfish.jersey.filter.LoggingFilter;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.ServerProperties;
