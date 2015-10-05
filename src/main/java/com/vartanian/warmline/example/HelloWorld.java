@@ -2,21 +2,34 @@ package com.vartanian.warmline.example;
 
 
 import com.fasterxml.jackson.jaxrs.json.JacksonJsonProvider;
+import com.vartanian.warmline.annotations.Compress;
 import com.vartanian.warmline.beans.MyBean;
 import com.vartanian.warmline.exeptions.CustomNotFoundException;
 import com.vartanian.warmline.filters.AuthorizationRequestFilter;
 import com.vartanian.warmline.filters.PoweredByResponseFilter;
+import com.vartanian.warmline.interceptors.CompressionDynamicBinding;
+import com.vartanian.warmline.interceptors.GZIPReaderInterceptor;
+import com.vartanian.warmline.interceptors.GZIPWriterInterceptor;
+import com.vartanian.warmline.processors.MyOptionsModelProcessor;
+import com.vartanian.warmline.validators.ValidationConfigurationContextResolver;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.jersey.filter.LoggingFilter;
 import org.glassfish.jersey.grizzly2.httpserver.GrizzlyHttpServerFactory;
+import org.glassfish.jersey.linking.InjectLink;
+import org.glassfish.jersey.linking.InjectLinks;
 import org.glassfish.jersey.media.multipart.FormDataMultiPart;
 import org.glassfish.jersey.media.multipart.MultiPart;
 import org.glassfish.jersey.media.multipart.MultiPartFeature;
+import org.glassfish.jersey.media.sse.EventOutput;
+import org.glassfish.jersey.media.sse.OutboundEvent;
+import org.glassfish.jersey.media.sse.SseFeature;
 import org.glassfish.jersey.message.MessageBodyWorkers;
 import org.glassfish.jersey.server.JSONP;
 import org.glassfish.jersey.server.ResourceConfig;
+import org.hibernate.validator.constraints.Email;
 
 import javax.activation.MimetypesFileTypeMap;
+import javax.validation.constraints.NotNull;
 import javax.ws.rs.*;
 import javax.ws.rs.core.*;
 import javax.ws.rs.ext.MessageBodyWriter;
@@ -28,6 +41,8 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.List;
 
 /**
  * Created by super on 10/1/15.
@@ -38,6 +53,10 @@ public class HelloWorld {
 
     @Context
     private MessageBodyWorkers workers;
+    @Context
+    UriInfo uriInfo;
+    @InjectLinks({@InjectLink(resource=HelloWorld.class, rel = "self")})
+    List<Link> links;
 
     public static void main(String[] args) throws Exception {
 
@@ -49,6 +68,11 @@ public class HelloWorld {
         config.register(PoweredByResponseFilter.class);
         config.register(LoggingFilter.class);
         config.register(AuthorizationRequestFilter.class);
+        config.register(GZIPWriterInterceptor.class);
+        config.register(GZIPReaderInterceptor.class);
+        config.register(CompressionDynamicBinding.class);
+        config.register(MyOptionsModelProcessor.class);
+        config.register(ValidationConfigurationContextResolver.class);
         HttpServer httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, config);
 
         try {
@@ -72,7 +96,7 @@ public class HelloWorld {
     public String getClichedMessage() {
 
         // Return some cliched textual content
-        return "Hello World";
+        return "Привет Мир!!!";
     }
 
     @GET
@@ -92,6 +116,7 @@ public class HelloWorld {
 
     @GET
     @Produces("application/xml")
+    @Compress
     public String getMyBean() {
 
         final MyBean myBean = new MyBean("Hello World!", 42);
@@ -131,7 +156,7 @@ public class HelloWorld {
     }
 
     @GET
-    @Produces("application/json")
+    @Produces(MediaType.APPLICATION_JSON)
     public MyBean postMyBean() {
         return new MyBean("Hello World!", 41);
     }
@@ -161,4 +186,57 @@ public class HelloWorld {
         return domSource;
     }
 
+    @GET
+    @Consumes("text/plain")
+    public String getData(@Context SecurityContext sc) throws URISyntaxException {
+        return "Test";
+    }
+
+    @GET
+    @Produces(SseFeature.SERVER_SENT_EVENTS)
+    public EventOutput getServerSentEvents() throws IOException {
+        final EventOutput eventOutput = new EventOutput();
+        eventOutput.write(new OutboundEvent.Builder().data(String.class, "Это займет какое-то время").build());
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    for (int i = 0; i < 10; i++) {
+                        // ... code that waits 1 second
+                        Thread.sleep(1000);
+                        final OutboundEvent.Builder eventBuilder
+                                = new OutboundEvent.Builder();
+                        eventBuilder.name("message-to-client");
+                        eventBuilder.data(String.class,
+                                "Hello world " + i + "!");
+                        final OutboundEvent event = eventBuilder.build();
+                        eventOutput.write(event);
+                    }
+                } catch (IOException e) {
+                    throw new RuntimeException(
+                            "Error when writing the event.", e);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(
+                            "Error when writing the event.", e);
+                } finally {
+                    try {
+                        eventOutput.close();
+                    } catch (IOException ioClose) {
+                        throw new RuntimeException(
+                                "Error when closing the event output.", ioClose);
+                    }
+                }
+            }
+        }).start();
+        return eventOutput;
+    }
+
+    @POST
+    @Consumes("application/x-www-form-urlencoded")
+    public void registerUser(@NotNull @FormParam("lastName") String lastName,
+            @Email @FormParam("email") String email) {
+
+
+
+    }
 }
